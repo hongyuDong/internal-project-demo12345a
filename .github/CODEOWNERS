@@ -1,0 +1,95 @@
+# ============================================================
+#  CODEOWNERS - 自动分配 PR Reviewer
+#  https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+#  语法: <pattern>    @owner
+#  最后匹配优先
+# ============================================================
+
+# === 默认 owner（所有未匹配的文件） ===
+*                                       @devex-team
+
+# === 治理文档 ===
+/CLAUDE.md                             @devex-team
+/README.md                             @devex-team
+/CHANGELOG.md                          @devex-team
+/PUBLISHING.md                         @devex-team
+/SECURITY.md                           @security-team
+/CONTRIBUTING.md                       @devex-team
+/LICENSE                                @devex-team
+/GOVERNANCE.md                         @devex-team
+
+# === Claude Code 配置 ===
+# Sub-agents (业务理解、架构、规划)
+/.claude/agents/                       @devex-team
+
+# Skills (任务工作流)
+/.claude/skills/                       @devex-team
+
+# Commands (斜杠命令)
+/.claude/commands/                     @devex-team
+
+# Hooks (安全相关，需要 security 团队 review)
+/.claude/hooks/                        @security-team @devex-team
+
+# Settings.json (权限配置)
+/.claude/settings.json                 @security-team @devex-team
+/.claude/settings.local.json.example   @devex-team
+
+# === 业务文档 ===
+# PRD + 业务规则 + 用户故事
+/docs/requirements/                    @product-team
+
+# 领域模型 + 术语
+/docs/domain/                          @arch-team @product-team
+
+# === 架构文档 ===
+# 系统架构 + ADR + 部署 + 数据流
+/docs/architecture/                    @arch-team
+
+# ADR 必须 2 人 review（架构师 + 安全）
+/docs/architecture/adr/                @arch-team @security-team
+
+# === API 文档 ===
+/docs/api/                              @api-team
+
+# === Runbook + 事故响应 ===
+/docs/runbook/                         @sre-team
+
+# === 测试策略 ===
+/docs/testing/                         @qa-team
+
+# === 项目管理 ===
+/docs/project/                         @devex-team
+/docs/project/roadmap.md               @product-team
+
+# === 任务规划系统 ===
+/.planning/                            @devex-team
+
+# === 脚本 ===
+/scripts/                              @devex-team
+/init-git.bat                          @devex-team
+/init-git.sh                           @devex-team
+/release.bat                           @devex-team
+/release.sh                            @devex-team
+/install.bat                           @devex-team
+/install.sh                            @devex-team
+/uninstall.bat                         @devex-team
+
+# === CI/CD ===
+/.github/workflows/                    @devex-team
+/.github/ISSUE_TEMPLATE/               @devex-team
+/.github/PULL_REQUEST_TEMPLATE.md      @devex-team
+
+# === 代码 ===
+/src/                                  @backend-team
+/requirements.txt                       @backend-team
+
+# === Git 配置 ===
+/.gitignore                            @devex-team
+/.gitattributes                        @devex-team
+/.editorconfig                         @devex-team
+
+# === 紧急 ===
+# SECURITY.md 紧急联系 @security-team（24h 内）
+/SECURITY.md                           @security-team
