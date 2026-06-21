@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate config & docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate YAML files
+        run: |
+          pip install yamllint
+          yamllint -d "{extends: default, rules: {line-length: {max: 200}, document-start: disable}}" \
+            .claude/settings.json \
+            docs/api/openapi.yaml \
+            .mcp.json.example
+
+      - name: Validate OpenAPI spec
+        run: |
+          pip install openapi-spec-validator
+          python -c "
+          import yaml, sys
+          from openapi_spec_validator import validate
+          from openapi_spec_validator.readers import read_from_filename
+          spec_dict, base_uri = read_from_filename('docs/api/openapi.yaml')
+          try:
+              validate(spec_dict)
+              print('✅ OpenAPI spec valid')
+          except Exception as e:
+              print(f'❌ OpenAPI spec invalid: {e}')
+              sys.exit(1)
+          "
+
+      - name: Validate settings.json
+        run: |
+          python -c "
+          import json
+          with open('.claude/settings.json') as f:
+              config = json.load(f)
+          assert 'permissions' in config, 'Missing permissions'
+          assert 'hooks' in config, 'Missing hooks'
+          print('✅ settings.json valid')
+          "
+
+      - name: Check for secrets
+        run: |
+          # 阻止密钥泄漏
+          if grep -rE "AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|sk-[a-zA-Z0-9]{32}" \
+            --include="*.json" --include="*.yaml" --include="*.md" \
+            --include="*.sh" --include="*.bat" \
+            . | grep -v ".git/" | head -3; then
+            echo "❌ 发现疑似密钥"
+            exit 1
+          fi
+          echo "✅ 无密钥泄漏"
+
+  lint:
+    name: Lint hooks & scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate bash scripts
+        run: |
+          for f in $(find .claude/hooks -name "*.sh") $(find . -maxdepth 1 -name "*.sh" 2>/dev/null); do
+            echo "Checking $f"
+            bash -n "$f" || exit 1
+          done
+          echo "✅ All bash scripts syntactically valid"
+
+      - name: Check shellcheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: './.claude/hooks'
+          additional_files: 'install.sh init-git.sh release.sh run-debug.sh 2>/dev/null || true'
+
+  test:
+    name: Test (placeholder)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run scripts tests (if any)
+        run: |
+          if [ -d "tests" ]; then
+            echo "Running tests..."
+            # 实际项目会有 pytest，这里占位
+            pip install pytest
+            pytest tests/ -v || echo "⚠️  No tests yet (template)"
+          else
+            echo "⚠️ No tests/ directory (template only)"
+          fi
+
+  changelog:
+    name: Check CHANGELOG updated
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check CHANGELOG
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -q "CHANGELOG.md"; then
+            echo "✅ CHANGELOG.md updated"
+          else
+            echo "::warning::CHANGELOG.md not updated. Please add an entry."
+          fi

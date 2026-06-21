@@ -179,19 +179,19 @@ if exist "%TARGET%\CLAUDE.md" (
     copy /Y "%SCRIPT_DIR%\CLAUDE.md" "%TARGET%\CLAUDE.md" >nul
 )
 
-REM 复制 docs/ (业务/架构/项目文档)
-echo        [INFO] 复制 docs\internal-project\ (业务文档) ...
-if not exist "%TARGET%\docs\internal-project" mkdir "%TARGET%\docs\internal-project" >nul
-xcopy /E /I /Y /Q "%SCRIPT_DIR%\docs\requirements" "%TARGET%\docs\internal-project\requirements\" >nul
-xcopy /E /I /Y /Q "%SCRIPT_DIR%\docs\domain" "%TARGET%\docs\internal-project\domain\" >nul
-xcopy /E /I /Y /Q "%SCRIPT_DIR%\docs\architecture" "%TARGET%\docs\internal-project\architecture\" >nul
-xcopy /E /I /Y /Q "%SCRIPT_DIR%\docs\project" "%TARGET%\docs\internal-project\project\" >nul
-
-REM 复制 docs/api/ (OpenAPI spec — 独立路径, 不嵌套)
-echo        [INFO] 复制 docs\api\ (OpenAPI spec) ...
-if exist "%SCRIPT_DIR%\docs\api" (
-    if not exist "%TARGET%\docs\api" mkdir "%TARGET%\docs\api" >nul
-    xcopy /E /I /Y /Q "%SCRIPT_DIR%\docs\api" "%TARGET%\docs\api\" >nul
+REM 复制 docs/ (保持与源目录相同的路径结构)
+echo        [INFO] 复制 docs\ ...
+if not exist "%TARGET%\docs" mkdir "%TARGET%\docs" >nul
+for %%d in (requirements domain architecture project api runbook testing) do (
+    if exist "%SCRIPT_DIR%\docs\%%d" (
+        if not exist "%TARGET%\docs\%%d" mkdir "%TARGET%\docs\%%d" >nul
+        xcopy /E /I /Y /Q "%SCRIPT_DIR%\docs\%%d" "%TARGET%\docs\%%d\" >nul
+    )
+)
+REM 复制 docs/architecture/diagrams/
+if exist "%SCRIPT_DIR%\docs\architecture\diagrams" (
+    if not exist "%TARGET%\docs\architecture\diagrams" mkdir "%TARGET%\docs\architecture\diagrams" >nul
+    xcopy /E /I /Y /Q "%SCRIPT_DIR%\docs\architecture\diagrams" "%TARGET%\docs\architecture\diagrams\" >nul
 )
 
 REM 复制 .planning/

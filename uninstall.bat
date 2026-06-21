@@ -46,7 +46,11 @@ if /i not "!CONFIRM!"=="y" goto end
 if exist "!TARGET!\.claude" rd /S /Q "!TARGET!\.claude"
 if exist "!TARGET%\CLAUDE.md" del /Q "!TARGET%\CLAUDE.md"
 if exist "!TARGET%\CLAUDE-TEMPLATE-README.md" del /Q "!TARGET%\CLAUDE-TEMPLATE-README.md"
-if exist "!TARGET!\docs\internal-project" rd /S /Q "!TARGET!\docs\internal-project"
+if exist "!TARGET!\docs" (
+    for %%d in (requirements domain architecture project api runbook testing) do (
+        if exist "!TARGET!\docs\%%d" rd /S /Q "!TARGET!\docs\%%d"
+    )
+)
 if exist "!TARGET!\docs\api" rd /S /Q "!TARGET!\docs\api"
 if exist "!TARGET%\.planning" rd /S /Q "!TARGET%\.planning"
 

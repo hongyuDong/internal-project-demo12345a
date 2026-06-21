@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create distribution packages
+        run: |
+          # 创建 ZIP
+          zip -r "internal-project-${{ steps.get_version.outputs.VERSION }}.zip" \
+            . -x ".git/*" "*.zip" "*.tar.gz" -x "node_modules/*" "*.bak"
+          
+          # 创建 tar.gz
+          tar --exclude='.git' --exclude='*.zip' --exclude='*.tar.gz' \
+            --exclude='node_modules' --exclude='*.bak' \
+            -czf "internal-project-${{ steps.get_version.outputs.VERSION }}.tar.gz" .
+          
+          # 计算 SHA256
+          sha256sum "internal-project-${{ steps.get_version.outputs.VERSION }}.zip" \
+            > "internal-project-${{ steps.get_version.outputs.VERSION }}.zip.sha256"
+          sha256sum "internal-project-${{ steps.get_version.outputs.VERSION }}.tar.gz" \
+            > "internal-project-${{ steps.get_version.outputs.VERSION }}.tar.gz.sha256"
+          
+          ls -la *.zip *.tar.gz *.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ steps.get_version.outputs.VERSION }}"
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.VERSION, '-') }}
+          body: |
+            ## v${{ steps.get_version.outputs.VERSION }}
+            
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/v${{ steps.get_version.outputs.VERSION }}/CHANGELOG.md) for details.
+            
+            ### Assets
+            - `internal-project-${{ steps.get_version.outputs.VERSION }}.zip` — Windows
+            - `internal-project-${{ steps.get_version.outputs.VERSION }}.tar.gz` — Linux/Mac
+            - SHA256 checksums included
+          files: |
+            internal-project-${{ steps.get_version.outputs.VERSION }}.zip
+            internal-project-${{ steps.get_version.outputs.VERSION }}.zip.sha256
+            internal-project-${{ steps.get_version.outputs.VERSION }}.tar.gz
+            internal-project-${{ steps.get_version.outputs.VERSION }}.tar.gz.sha256
