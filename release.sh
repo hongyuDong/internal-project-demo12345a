@@ -49,10 +49,11 @@ echo
 # === 1. 预检查 ===
 echo -e "${BLUE}[1/5]${NC} 预检查..."
 
-# 在 main 分支
+# 在 main 或 master 分支
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "master" ]; then
-    echo -e "${RED}[ERROR]${NC} 当前在 $BRANCH 分支，请切到 main"
+    echo -e "${RED}[ERROR]${NC} 当前在 $BRANCH 分支，请切到 main 或 master"
+    echo -e "       提示: 如果用其他分支名（如 develop），加 --branch 参数"
     exit 1
 fi
 

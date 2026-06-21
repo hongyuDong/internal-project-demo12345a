@@ -116,8 +116,9 @@ if [ -f "$TASK_PLAN" ]; then
   if [ "$TOTAL" -gt 0 ]; then
     PCT=$((DONE * 100 / TOTAL))
     
-    # 只在进度变化时报告
-    LAST_PCT_FILE="/tmp/.claude_last_pct"
+    # 只在进度变化时报告（用 .planning/.cache/ 跨平台）
+    LAST_PCT_FILE="$PROJECT_DIR/.planning/.cache/last_pct"
+    mkdir -p "$(dirname "$LAST_PCT_FILE")" 2>/dev/null
     LAST_PCT=$(cat "$LAST_PCT_FILE" 2>/dev/null || echo "0")
     
     if [ "$PCT" != "$LAST_PCT" ]; then

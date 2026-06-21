@@ -1,0 +1,41 @@
+# EditorConfig - 跨编辑器一致性
+# https://editorconfig.org/
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.{md,markdown}]
+trim_trailing_whitespace = false  # Markdown 末尾空格有意义（换行）
+
+[*.{bat,cmd}]
+end_of_line = crlf                # Windows 脚本必须 CRLF
+
+[*.sh]
+end_of_line = lf                  # Shell 脚本 LF
+# shellcheck shell=bash
+
+[Makefile]
+indent_style = tab
+
+[*.{py,pyx}]
+indent_size = 4
+max_line_length = 100
+
+[*.{ts,tsx,js,jsx}]
+indent_size = 2
+
+[*.go]
+indent_style = tab
+indent_size = 4
+
+[*.{rs,java,kt}]
+indent_size = 4

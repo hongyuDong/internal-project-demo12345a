@@ -1,0 +1,56 @@
+# Git attributes
+# https://git-scm.com/docs/gitattributes
+
+# === 文本 / 二进制 ===
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+*.ps1         text eol=crlf
+*.sh          text eol=lf
+*.py          text eol=lf
+*.md          text eol=lf diff=markdown
+*.yml         text eol=lf
+*.yaml        text eol=lf
+*.json        text eol=lf
+*.toml        text eol=lf
+*.cfg         text eol=lf
+*.ini         text eol=lf
+
+# 二进制（不要 diff）
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.ico         binary
+*.pdf         binary
+*.zip         binary
+*.tar.gz      binary
+*.gz          binary
+*.tgz         binary
+*.whl         binary
+*.so          binary
+*.dll         binary
+*.exe         binary
+*.pdb         binary
+
+# === Diff 驱动 ===
+*.sql         diff=sql
+*.py          diff=python
+*.ts          diff=typescript
+*.tsx         diff=typescript
+*.js          diff=javascript
+*.jsx         diff=javascript
+*.go          diff=golang
+*.rs          diff=rust
+*.java        diff=java
+*.md          diff=markdown
+Dockerfile    diff=dockerfile
+
+# === 导出（避免合并冲突） ===
+docs/api/openapi.yaml          merge=union              # 多人加端点不冲突
+package-lock.json             merge=union
+yarn.lock                     merge=union
+CHANGELOG.md                  merge=union
+
+# === LFS（大文件） ===
+# *.psd filter=lfs diff=lfs merge=lfs -text
+# *.zip filter=lfs diff=lfs merge=lfs -text

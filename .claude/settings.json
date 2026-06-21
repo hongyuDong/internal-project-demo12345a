@@ -173,5 +173,6 @@
     ]
   },
   "enableAllProjectMcpServers": false,
-  "model": "sonnet"
+  "model": "sonnet",
+  "_hooks_platform_note": "On Windows, ensure PowerShell execution policy allows scripts: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
 }

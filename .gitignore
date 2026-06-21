@@ -131,3 +131,6 @@ site/
 # === 备份 ===
 backups/
 *.backup
+
+# Cache
+.planning/.cache/
