@@ -1,0 +1,1876 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "internal-user-service API",
+    "version": "1.4.2",
+    "summary": "企业内部用户中心微服务 API",
+    "description": "统一的身份与权限管理 API。所有内部系统通过它管理员工、组织、权限。\n\n## 认证\n\n所有 API（除 `/healthz` 和 `/readyz`）都需要 Bearer Token：\n\n```\nAuthorization: Bearer <jwt-token>\n```\n\nJWT 由公司 SSO 颁发，RS256 签名，1 小时过期。\n\n## 错误响应\n\n遵循 [RFC 7807](https://tools.ietf.org/html/rfc7807)：\n\n```json\n{\n  \"type\": \"https://api.company.com/errors/user-not-found\",\n  \"title\": \"User Not Found\",\n  \"status\": 404,\n  \"detail\": \"User with ID 12345 does not exist\",\n  \"instance\": \"/v1/users/12345\",\n  \"request_id\": \"req_abc123\"\n}\n```\n\n## 幂等性\n\n所有写操作（POST / PATCH / DELETE / PUT）必须带 `Idempotency-Key` header。\n服务端会缓存 24 小时，重复请求返回首次结果。\n\n## 限流\n\n每个用户每分钟最多 1000 次 API 调用（BR-018）。\n超额返回 429 + `Retry-After` header。\n",
+    "contact": {
+      "name": "user-service-team",
+      "email": "user-service@company.com",
+      "url": "https://wiki.company.com/user-service"
+    },
+    "license": {
+      "name": "Proprietary",
+      "url": "https://company.com/license"
+    },
+    "x-logo": {
+      "url": "https://company.com/logo.png"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://user.company.com",
+      "description": "生产环境"
+    },
+    {
+      "url": "https://user.staging.company.com",
+      "description": "Staging"
+    },
+    {
+      "url": "http://localhost:8000",
+      "description": "本地开发"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "健康检查"
+    },
+    {
+      "name": "Auth",
+      "description": "认证相关"
+    },
+    {
+      "name": "Users",
+      "description": "用户管理"
+    },
+    {
+      "name": "Organizations",
+      "description": "组织架构"
+    },
+    {
+      "name": "Roles",
+      "description": "角色管理"
+    },
+    {
+      "name": "Permissions",
+      "description": "权限管理"
+    },
+    {
+      "name": "Jobs",
+      "description": "异步作业"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "SSO 颁发的 JWT（RS256 签名）。1 小时过期。\n获取方式：访问 SSO 登录获取 token，然后用本 API。\n"
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "幂等键（UUID v4），24 小时内重复请求返回首次结果",
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "example": "550e8400-e29b-41d4-a716-446655440000"
+        }
+      },
+      "PageCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "分页游标（base64 编码）",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "PageLimit": {
+        "name": "limit",
+        "in": "query",
+        "description": "每页条数",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "RequestId": {
+        "name": "X-Request-ID",
+        "in": "header",
+        "description": "请求追踪 ID（自动生成）",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "请求参数错误",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "https://api.company.com/errors/invalid-input",
+              "title": "Invalid Input",
+              "status": 400,
+              "detail": "email: invalid format"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "未认证",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "无权限",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "资源不存在",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "资源冲突",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "超过速率限制",
+        "headers": {
+          "Retry-After": {
+            "description": "多少秒后重试",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "服务器内部错误",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Problem": {
+        "type": "object",
+        "description": "RFC 7807 Problem Details",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": [
+          "data",
+          "has_more"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {}
+          },
+          "next_cursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UserStatus": {
+        "type": "string",
+        "enum": [
+          "pending_verification",
+          "active",
+          "dormant",
+          "disabled"
+        ],
+        "description": "* `pending_verification` - 待 SSO 验证\n* `active` - 正常\n* `dormant` - 休眠（180 天未登录）\n* `disabled` - 已禁用（离职/被禁用）\n"
+      },
+      "RoleName": {
+        "type": "string",
+        "enum": [
+          "employee",
+          "manager",
+          "admin",
+          "super_admin"
+        ],
+        "description": "内置角色"
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "name",
+          "employee_id",
+          "status",
+          "primary_department_id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "email_verified": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "employee_id": {
+            "type": "string",
+            "pattern": "^E[0-9]{8}$",
+            "example": "E01234567"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "已加密"
+          },
+          "id_card": {
+            "type": "string",
+            "nullable": true,
+            "description": "已加密"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserStatus"
+          },
+          "primary_department_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "manager_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "secondary_departments": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 5
+          },
+          "hire_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "last_login_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "description": "乐观锁版本号"
+          }
+        }
+      },
+      "UserCreate": {
+        "type": "object",
+        "required": [
+          "email",
+          "name",
+          "employee_id",
+          "primary_department_id"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "employee_id": {
+            "type": "string",
+            "pattern": "^E[0-9]{8}$"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "primary_department_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "manager_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "secondary_departments": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 5
+          },
+          "hire_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleName"
+            },
+            "default": [
+              "employee"
+            ]
+          }
+        }
+      },
+      "UserUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "phone": {
+            "type": "string"
+          },
+          "manager_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "secondary_departments": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 5
+          }
+        }
+      },
+      "UserList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Pagination"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Organization": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "code",
+          "level",
+          "path",
+          "is_virtual",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "parent_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6,
+            "description": "树层级深度（BR-005 ≤ 6）"
+          },
+          "path": {
+            "type": "string",
+            "description": "materialized path",
+            "example": "/company/engineering/backend/"
+          },
+          "is_virtual": {
+            "type": "boolean"
+          },
+          "manager_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "cost_center": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OrganizationCreate": {
+        "type": "object",
+        "required": [
+          "name",
+          "code"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "parent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "manager_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_virtual": {
+            "type": "boolean",
+            "default": false
+          },
+          "cost_center": {
+            "type": "string",
+            "maxLength": 20
+          }
+        }
+      },
+      "OrganizationTree": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Organization"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OrganizationTree"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Role": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_system"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "$ref": "#/components/schemas/RoleName"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_system": {
+            "type": "boolean",
+            "description": "是否内置角色（不可删）"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Permission": {
+        "type": "object",
+        "required": [
+          "resource",
+          "action"
+        ],
+        "properties": {
+          "resource": {
+            "type": "string",
+            "example": "users"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "delete",
+              "admin"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "all",
+              "dept",
+              "self"
+            ],
+            "default": "all"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "PermissionCheckRequest": {
+        "type": "object",
+        "required": [
+          "resource",
+          "action"
+        ],
+        "properties": {
+          "resource": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        }
+      },
+      "PermissionCheckResponse": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "bulk_import",
+              "password_reset",
+              "etc"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "completed",
+              "failed"
+            ]
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "processed": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              }
+            }
+          },
+          "result": {
+            "type": "object",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "BulkImportRequest": {
+        "type": "object",
+        "required": [
+          "format",
+          "data"
+        ],
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "csv",
+              "json"
+            ],
+            "default": "csv"
+          },
+          "data": {
+            "type": "string",
+            "description": "CSV 格式或 JSON 数组。\nCSV 必须有 header: email,name,employee_id,primary_department_id\n"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "default": false,
+            "description": "仅校验不实际创建"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "存活检查",
+        "description": "是否在运行（不做依赖检查）",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "就绪检查",
+        "description": "是否能服务（检查 DB / Redis / Kafka）",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ready"
+                    },
+                    "checks": {
+                      "type": "object",
+                      "properties": {
+                        "database": {
+                          "type": "string",
+                          "example": "ok"
+                        },
+                        "redis": {
+                          "type": "string",
+                          "example": "ok"
+                        },
+                        "kafka": {
+                          "type": "string",
+                          "example": "ok"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not Ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "not_ready"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "获取当前用户信息",
+        "description": "通过 JWT 解析当前用户",
+        "responses": {
+          "200": {
+            "description": "当前用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "登出",
+        "description": "撤销当前 session 和 token",
+        "responses": {
+          "204": {
+            "description": "登出成功"
+          }
+        }
+      }
+    },
+    "/v1/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "列出用户",
+        "description": "cursor-based 分页，需要 `users:read` 权限",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "name": "department_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "限定部门"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/UserStatus"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "模糊搜索（姓名 / 工号 / 邮箱）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserList"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "创建用户",
+        "description": "创建新用户。需要 `users:write` 权限。\n默认分配 `employee` 角色（BR-007）。\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功",
+            "headers": {
+              "Location": {
+                "description": "新用户 URL",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "description": "邮箱或工号已存在（BR-001, BR-002）",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "业务规则违反（如 manager 不同部门 BR-006）",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "获取用户详情",
+        "responses": {
+          "200": {
+            "description": "用户详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "部分更新用户",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "版本冲突（乐观锁）"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "软删用户",
+        "description": "BR-012 软删，保留 7 年审计",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "删除成功"
+          },
+          "403": {
+            "description": "不能删除自己（BR-010）",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{id}/deactivate": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "停用用户",
+        "description": "立即停用账户，所有 session 和 token 在 10 秒内失效（BR-014）。\n广播 `user.deactivated` Kafka 事件。\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "offboard",
+                "security",
+                "manual"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "停用成功"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/users/{id}/reactivate": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "重新启用用户",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "启用成功"
+          }
+        }
+      }
+    },
+    "/v1/users/{id}/permissions": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Users",
+          "Permissions"
+        ],
+        "summary": "获取用户的有效权限",
+        "description": "返回用户直接权限 + 角色权限 + 部门继承权限（BR-008）。\n缓存 5 分钟（ADR-0005）。\n",
+        "responses": {
+          "200": {
+            "description": "权限列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Permission"
+                      }
+                    },
+                    "effective_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/bulk-import": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "批量导入用户",
+        "description": "异步处理（最多 10000 行）。\n返回 task_id 用于轮询。\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "接受处理",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/me": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "获取当前用户",
+        "description": "等同 `/v1/auth/me`，更 RESTful 风格",
+        "responses": {
+          "200": {
+            "description": "当前用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations": {
+      "get": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "列出组织",
+        "parameters": [
+          {
+            "name": "parent_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "tree",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "是否返回树形结构"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "组织列表 / 树",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Organization"
+                      }
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OrganizationTree"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "创建组织",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "超过层级深度（BR-005 > 6）"
+          }
+        }
+      }
+    },
+    "/v1/organizations/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "获取组织详情",
+        "responses": {
+          "200": {
+            "description": "组织详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "更新组织",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "软删组织",
+        "description": "必须先迁移用户和子部门",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "删除成功"
+          },
+          "409": {
+            "description": "还有用户或子部门"
+          }
+        }
+      }
+    },
+    "/v1/organizations/{id}/users": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Organizations",
+          "Users"
+        ],
+        "summary": "列出组织下所有用户",
+        "responses": {
+          "200": {
+            "description": "用户列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{id}/children": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "列直接子部门",
+        "responses": {
+          "200": {
+            "description": "子部门",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Organization"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/roles": {
+      "get": {
+        "tags": [
+          "Roles"
+        ],
+        "summary": "列出所有角色",
+        "responses": {
+          "200": {
+            "description": "角色列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Role"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{id}/roles": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Roles",
+          "Users"
+        ],
+        "summary": "授予用户角色",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role_id"
+                ],
+                "properties": {
+                  "role_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expires_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "授权成功"
+          },
+          "403": {
+            "description": "不能授权 admin 给自己"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Roles",
+          "Users"
+        ],
+        "summary": "撤销用户角色",
+        "parameters": [
+          {
+            "name": "role_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "撤销成功"
+          }
+        }
+      }
+    },
+    "/v1/permissions": {
+      "get": {
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "列出所有权限定义",
+        "responses": {
+          "200": {
+            "description": "权限列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Permission"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/permissions/check": {
+      "post": {
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "检查当前用户权限",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionCheckRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "检查结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "查询异步任务状态",
+        "responses": {
+          "200": {
+            "description": "任务状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "userCreated": {
+      "post": {
+        "summary": "user.created 事件",
+        "description": "新用户创建后触发。\nKafka topic: `user.created`\n",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "event_type": {
+                    "type": "string",
+                    "example": "user.created"
+                  },
+                  "event_time": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "schema_version": {
+                    "type": "string",
+                    "example": "1.0"
+                  },
+                  "producer": {
+                    "type": "string",
+                    "example": "user-service"
+                  },
+                  "trace_id": {
+                    "type": "string"
+                  },
+                  "payload": {
+                    "type": "object",
+                    "properties": {
+                      "user_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "email": {
+                        "type": "string",
+                        "format": "email"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "primary_department_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "actor_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "处理成功"
+          }
+        }
+      }
+    },
+    "userDeactivated": {
+      "post": {
+        "summary": "user.deactivated 事件",
+        "description": "用户被停用（离职 / 禁用）",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "event_type": {
+                    "type": "string",
+                    "example": "user.deactivated"
+                  },
+                  "payload": {
+                    "type": "object",
+                    "properties": {
+                      "user_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "deactivated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "reason": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-rate-limit": {
+    "global": 1000,
+    "unit": "requests-per-minute-per-user",
+    "source": "BR-018"
+  },
+  "x-business-rules": {
+    "applied": [
+      "BR-001",
+      "BR-002",
+      "BR-003",
+      "BR-005",
+      "BR-006",
+      "BR-007",
+      "BR-008",
+      "BR-009",
+      "BR-010",
+      "BR-011",
+      "BR-012",
+      "BR-014",
+      "BR-018"
+    ]
+  },
+  "x-adrs": {
+    "applied": [
+      "ADR-0001",
+      "ADR-0002",
+      "ADR-0003",
+      "ADR-0005"
+    ]
+  }
+}

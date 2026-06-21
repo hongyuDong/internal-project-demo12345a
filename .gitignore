@@ -1,0 +1,133 @@
+# ============================================================
+#  Claude Code 企业模板 - .gitignore
+# ============================================================
+
+# === 安全相关（绝对不能提交）===
+# 密钥 / 凭据
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+
+# 凭据文件
+credentials*
+secrets/
+*.aws/credentials
+*.kube/config
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+known_hosts
+authorized_keys
+
+# Vault
+.vault-token
+
+# SSH
+.ssh/
+
+# 密钥扫描结果（避免噪音）
+.secrets.baseline
+
+# === 个人本地覆盖 ===
+# Claude Code 个人配置
+.claude/settings.local.json
+.claude/settings.local.json.bak
+
+# 用户的覆盖
+*.local
+*.local.*
+
+# === 临时文件 ===
+*.bak
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+*.egg
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# 构建产物
+dist/
+build/
+out/
+target/
+*.zip
+*.tar.gz
+*.tgz
+
+# 日志
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# 数据库
+*.db
+*.sqlite
+*.sqlite3
+
+# 临时
+tmp/
+temp/
+.cache/
+.env.bak
+
+# === 安装包（分发用其他方式） ===
+# 注意：分发用 zip / tar.gz 而不是 git，所以排除它们
+internal-project.zip
+internal-project.tar.gz
+
+# === OpenAPI 生成代码（自动生成，不入版本控制）===
+openapi-client/
+openapi-server/
+
+# === 测试覆盖率报告 ===
+coverage/
+.nyc_output/
+
+# === 文档构建 ===
+docs/_build/
+site/
+
+# === 备份 ===
+backups/
+*.backup
