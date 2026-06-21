@@ -1,33 +1,55 @@
 {
+  "_about": "=========================================================~n  Claude Code 企业模板 - 权限沙箱 + Hooks 配置~n  =========================================================~n  主人修改前请读：~n  - 绿色箭头符号含义：~n    - allowed:  显式允许（不需要问）~n    - denied:   显式拒绝（永远阻断）~n    - asked:    每次询问~n  - Bash 模式语法：~n    - Bash(git status)      仅匹配 git status~n    - Bash(git diff*)        匹配 git diff / git diff --staged 等~n    - Bash(rm *)            匹配 rm <任意参数>~n  - Hooks 顺序：~n    PreToolUse  → 检查（在执行前）~n    PostToolUse → 审计/格式化/通知（执行后）~n  - 详细的 hooks 说明见 docs/claude-hooks.md（即将添加）~n",
+
+  "_platform_note": "Linux/macOS 用 .sh hooks；Windows 用户装 PowerShell Core 后用 .ps1 hooks。bash-policy 仅 Linux/macOS（Windows 没有原生 Bash）。",
+
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
   "permissions": {
+
     "allow": [
+
       "Read",
       "Grep",
       "Glob",
+
       "Bash(git status)",
       "Bash(git diff*)",
       "Bash(git log*)",
       "Bash(git branch*)",
       "Bash(git show*)",
+      "Bash(git add*)",
+      "Bash(git fetch*)",
+      "Bash(git checkout*)",
+
       "Bash(make test*)",
       "Bash(make lint)",
       "Bash(make format)",
-      "Bash(make dev)",
+      "Bash(make db-migrate-staging)",
       "Bash(make db-shell)",
+      "Bash(make dev)",
+
       "Bash(uv pip list)",
       "Bash(uv run pytest*)",
       "Bash(uv run ruff*)",
       "Bash(uv run mypy*)",
       "Bash(uv run black*)",
       "Bash(uv run isort*)",
-      "Bash(alembic current)",
-      "Bash(alembic history*)",
+
+      "Bash(npm test*)",
+      "Bash(npm run build)",
+      "Bash(npm run lint)",
+      "Bash(npm run format)",
+
       "Bash(docker ps)",
       "Bash(docker logs*)",
+      "Bash(docker images)",
+
       "Bash(kubectl get*)",
       "Bash(kubectl describe*)",
       "Bash(kubectl logs*)",
+      "Bash(kubectl rollout status*)",
+
       "Bash(ls *)",
       "Bash(cat *)",
       "Bash(head *)",
@@ -35,26 +57,50 @@
       "Bash(wc *)",
       "Bash(grep *)",
       "Bash(find *)",
-      "Bash(jq *)"
+      "Bash(jq *)",
+      "Bash(echo *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)"
     ],
+
     "deny": [
+
       "Bash(rm -rf*)",
       "Bash(rm -fr*)",
       "Bash(sudo*)",
+      "Bash(su *)",
+
       "Bash(curl * | bash)",
       "Bash(curl * | sh)",
       "Bash(wget * | bash)",
       "Bash(eval*)",
+      "Bash(exec*)",
+
+      "Bash(:(){ :|:& };:)",
+
+      "Bash(mkfs*)",
+      "Bash(dd if=* of=/dev/*)",
+      "Bash(> /dev/sd*)",
       "Bash(chmod 777*)",
       "Bash(chown*)",
-      "Bash(wget * | sh)",
-      "Bash(mkfs*)",
-      "Bash(dd if=*)",
-      "Bash(> /dev/sda*)",
+      "Bash(chgrp*)",
+
       "Bash(shutdown*)",
       "Bash(reboot*)",
-      "Bash(kill -9*)",
-      "Bash(pkill -9*)",
+      "Bash(halt*)",
+      "Bash(init [016])",
+
+      "Bash(systemctl stop* ssh*)",
+      "Bash(systemctl disable* network*)",
+
+      "Bash(iptables -F)",
+      "Bash(iptables -X)",
+      "Bash(ufw disable)",
+
+      "Bash(crontab -r)",
+      "Bash(> /etc/crontab)",
+      "Bash(> /etc/systemd/system/*)",
+
       "Read(**/.env)",
       "Read(**/.env.*)",
       "Read(**/secrets/**)",
@@ -64,53 +110,58 @@
       "Read(**/.ssh/**)",
       "Read(**/id_rsa*)",
       "Read(**/id_dsa*)",
-      "Read(**/.aws/**)",
+      "Read(**/id_ed25519*)",
+      "Read(**/.aws/credentials)",
       "Read(**/.kube/config)",
-      "Write(**/.env*)",
+
+      "Write(**/.env)",
+      "Write(**/.env.*)",
       "Write(**/credentials*)",
       "Write(**/*.key)",
       "Write(**/*.pem)",
       "Write(**/.ssh/**)"
     ],
+
     "ask": [
-      "Bash(git add*)",
+
       "Bash(git commit*)",
       "Bash(git push*)",
       "Bash(git merge*)",
       "Bash(git rebase*)",
       "Bash(git reset*)",
       "Bash(git stash*)",
-      "Bash(make db-migrate*)",
+
+      "Bash(make db-migrate-prod)",
       "Bash(make db-rollback*)",
+      "Bash(make deploy-prod)",
+
       "Bash(alembic upgrade*)",
       "Bash(alembic downgrade*)",
-      "Bash(make deploy-*)",
+
       "Bash(kubectl apply*)",
       "Bash(kubectl delete*)",
       "Bash(kubectl scale*)",
-      "Bash(kubectl rollout*)",
+      "Bash(kubectl rollout undo*)",
+
       "Bash(docker push*)",
       "Bash(docker rm*)",
+
       "Bash(rm *)",
+
       "Write(*migration*)",
       "Write(*.sql)",
       "Write(*.yml)",
       "Write(*.yaml)",
       "Write(Dockerfile*)",
+      "Write(docker-compose*)",
+      "Write(.github/workflows/*)",
       "Write(*.toml)"
     ]
   },
+
   "hooks": {
+
     "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/bash-policy.sh"
-          }
-        ]
-      },
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
@@ -119,8 +170,18 @@
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/secret-scanner.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/bash-policy.sh"
+          }
+        ]
       }
     ],
+
     "PostToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit",
@@ -128,6 +189,10 @@
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/auto-format.sh"
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/doc-sync-check.sh"
           }
         ]
       },
@@ -141,26 +206,40 @@
         ]
       }
     ],
+
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-plan-check.sh"
+          }
+        ]
+      }
+    ],
+
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Claude Code] Session started at $(date -Iseconds) by $(whoami) in $(pwd)' >> ~/.claude/logs/sessions.log"
+            "command": "echo \"[Claude Code] Session started at $(date -Iseconds) by $(whoami) in $(pwd)\" >> ~/.claude/logs/sessions.log"
           }
         ]
       }
     ],
+
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Claude Code] Session stopped at $(date -Iseconds)' >> ~/.claude/logs/sessions.log"
+            "command": "echo \"[Claude Code] Session stopped at $(date -Iseconds)\" >> ~/.claude/logs/sessions.log"
           }
         ]
       }
     ],
+
     "Notification": [
       {
         "hooks": [
@@ -172,7 +251,19 @@
       }
     ]
   },
+
   "enableAllProjectMcpServers": false,
+
   "model": "sonnet",
-  "_hooks_platform_note": "On Windows, ensure PowerShell execution policy allows scripts: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
+
+  "_hooks_priority_explanation": [
+    "PreToolUse: secret-scanner (Write/Edit) → bash-policy (Bash)",
+    "  先检查再执行",
+    "PostToolUse: auto-format → doc-sync-check → audit-log",
+    "  先格式化 → 再检查文档同步 → 最后审计（无论什么工具都审计）",
+    "UserPromptSubmit: pre-plan-check",
+    "  任务指令进来时，检查是否要先规划",
+    "SessionStart/Stop: 会话日志",
+    "Notification: Slack 通知"
+  ]
 }

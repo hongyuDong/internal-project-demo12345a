@@ -1,236 +1,233 @@
-# internal-user-service
+# internal-user-service — Claude Code 项目记忆
 
-> 企业内部用户中心微服务 — Claude Code 项目记忆
+> 内部用户中心微服务 — 这是 **Claude Code 的"上下文",不是"命令"**  
+> 遇到模糊任务时，Claude 应该问；遇到明确任务时，直接做。
 
-## 📋 工作流程（强制 — 任何任务前必读）
+---
 
-**Claude 接到任何任务时，必须按以下 4 步执行**。跳过任何一步会被 `pre-plan-check` hook 警告。
+## 🚦 工作流程分级（不是一刀切）
+
+### 🟢 软性建议（默认遵守，但可以灵活）
+
+> 这些是最佳实践，遇到简单问题不必硬套
+
+- **简单问答**（"这个 API 怎么用？"、"X 是什么意思？"）→ 直接答，不建 task_plan
+- **小修改**（改一行、5 分钟内）→ 直接改 + 简短 commit message
+- **重命名 / 移动文件** → 直接做
+- **查文档**（"BR-XXX 是什么"）→ 直接读 docs/
+
+### 🟡 推荐（中等任务）
+
+> 10 分钟 - 2 小时的改动，建议建个简单 task_plan
+
+- **新加 skill**（如 create-new-endpoint）
+- **修改 agent**（如 security-reviewer）
+- **添加新 endpoint**（如 1-2 个 API）
+- **小重构**
+
+### 🔴 强制（重大任务）
+
+> 这些必须建完整 task_plan + 4 个里程碑 + 评审
+
+- **改架构**（新服务、新中间件）
+- **改数据模型**（用户、组织、权限结构）
+- **写 ADR**（任何架构决策）
+- **处理 P0 事故**
+- **跨服务改动**（影响其他团队）
+
+---
+
+## 📋 强制任务的标准流程（仅适用 🔴 级别）
 
 ### Step 1: 理解需求 🔍
 
-开始前**必须**读：
+**软建议**：开始前读相关 docs
 
-| 必读 | 作用 |
-|------|------|
-| `docs/requirements/PRD.md` | 产品愿景 + 核心场景 |
-| `docs/requirements/business-rules.md` | 业务规则编号（BR-NNN）|
-| `docs/domain/glossary.md` | 业务术语统一 |
-| `docs/domain/domain-model.md` | 实体 + 状态机 |
-| `docs/requirements/user-stories/PROJ-XXXX.md` | 当前用户故事（如有） |
-| `docs/architecture/overview.md` | 系统架构总览 |
-| 相关 ADR（`docs/architecture/adr/NNNN-*.md`）| 架构决策历史 |
+```
+推荐读:
+- docs/requirements/PRD.md           产品愿景 + 场景
+- docs/requirements/business-rules.md 业务规则编号 BR-NNN
+- docs/domain/glossary.md            业务术语
+- docs/architecture/overview.md       系统架构
+- 相关 ADR（docs/architecture/adr/）
+```
 
-**强制使用 sub-agent 验证**：
-- `product-owner` — 验证业务理解、覆盖所有 AC
-- `architect` — 评估架构影响、强制写 ADR
+**Socratic 5 问**（仅在需求不清时问，不清不问）：
 
-**Socratic 5 问**（需求不清时必须问）：
 1. 给谁用？2. 解决什么问题？3. 成功标准？4. 不做什么？5. 依赖/约束？
 
 ### Step 2: 规划路径 📋
 
-**任何动手前**必须创建 `.planning/current/task_plan.md`，包含：
+**仅 🔴 级别**才需要完整 task_plan.md：
 
-- ✅ 目标（一句话）
-- ✅ 验收标准（Given/When/Then）
-- ✅ 子任务（每个 ≤ 30 分钟，有完成标准）
-- ✅ 决策记录（引用 BR-NNN / ADR-NNNN）
-- ✅ 风险评估（🟢/🟡/🔴）
-- ✅ 回滚方案
+```markdown
+# Task: <name> [PROJ-XXXX]
 
-**使用 skill**：
-- `decompose-requirement` — 拆解需求
-- `plan-execution` — 生成依赖图 + 里程碑
-- `create-adr` — 写架构决策
+## 目标
+<一句话>
 
-**强制 4 个里程碑**：
-- **M1 调研**: 读上下文 + profile 现状
-- **M2 设计**: 写 ADR + 评审
-- **M3 实施**: 编码 + 测试
-- **M4 验证**: 部署 staging + PM 验收
+## 验收标准
+- [ ] AC-1: <具体可验证>
+- [ ] AC-2: ...
 
-**每个 M 必须停下来**等用户确认，再进下一个。
+## 子任务（每个 ≤ 30 分钟）
+- [ ] 1. ...
+- [ ] 2. ...
+
+## 决策记录 + 风险 + 回滚
+<简短>
+```
 
 ### Step 3: 执行 ⚙️
 
-**每个 subtask 完成后**，自动调用 `update-progress` skill：
+**软建议**：每个 subtask 后更新 progress.md
 
-1. 更新 `task_plan.md` 复选框
-2. 追加关键发现到 `notes.md`
-3. 更新 `progress.md` 时间线 + 百分比
-4. 通知（如里程碑 / 阻塞 / 风险变化）
-
-**使用 sub-agent 跟踪**：
-- `planner` — 拆解
-- `tracker` — 跟踪（自动检测阻塞 / 风险升级）
-
-**自动 hook**：
-- `pre-plan-check.sh` — 动手前检查规划完整性
-- `post-task-update.sh` — 任务后自动更新进度
-- `doc-sync-check.sh` — 检查代码与文档同步
+**自动触发**（无需手动）：
+- `post-task-update` hook 自动记录代码变更
+- `doc-sync-check` hook 提醒文档同步
+- `audit-log` hook 记录所有工具调用
 
 ### Step 4: 验证 ✅
 
-- [ ] 单元测试 + 集成测试通过
-- [ ] 覆盖率达标（≥ 85%）
-- [ ] 部署 staging + 冒烟测试
-- [ ] PM 在 staging 验收
-- [ ] 部署 prod（如适用）
-- [ ] 24 小时监控无异常
+**通用检查**：
+- [ ] 测试通过（如果有）
+- [ ] 文档更新（如改了 API / 配置）
+- [ ] 没引入密钥泄漏（hook 已自动检查）
+- [ ] 跨平台兼容（如改了 hook）
 
 ### Step 5: 归档 📦
 
-任务完成后：
-1. 跑 `/retro` 写经验教训
-2. 把 `.planning/current/` 移到 `.planning/archive/YYYY-MM-DD-{slug}/`
-3. 更新 `docs/project/changelog.md`
-4. Slack 通知 `#user-service-dev`
+**软建议**：重要任务跑 `/retro`，归档 `.planning/`
 
 ---
 
-## 🚦 状态流转
+## 🤖 Sub-agents（按需调用）
 
+| Agent | 何时调用 |
+|-------|---------|
+| `product-owner` | 不确定业务需求时验证 |
+| `architect` | 不确定架构选择时验证 |
+| `planner` | 复杂任务拆解 |
+| `tracker` | 跟踪长期任务进度 |
+| `security-reviewer` | 写安全相关代码后 |
+| `api-designer` | 设计新 API |
+| `test-engineer` | 写测试用例 |
+| `db-migrator` | 写 DB migration |
+
+**软建议**：能用常识判断的不调 sub-agent（小问题不要过度工程）。
+
+---
+
+## 🔧 Skills（按需触发）
+
+| Skill | 触发 |
+|-------|------|
+| `decompose-requirement` | 复杂任务需要拆解 |
+| `plan-execution` | 生成 DAG + 里程碑 |
+| `update-progress` | 任务进度跟踪 |
+| `create-adr` | 写架构决策 |
+| `create-new-endpoint` | 完整新建 API |
+| `deploy-staging` | 部署 staging |
+| `run-incident` | P0/P1 事故 |
+
+---
+
+## 📚 文档索引（按角色）
+
+| 角色 | 必读 |
+|------|------|
+| 新人 | README.md → docs/architecture/overview.md → docs/domain/glossary.md |
+| 开发 | docs/api/openapi.yaml → docs/runbook/README.md → docs/testing/strategy.md |
+| 架构 | docs/architecture/overview.md → data-flow.md → adr/ |
+| PM | docs/requirements/PRD.md → business-rules.md → docs/project/roadmap.md |
+| SRE | docs/runbook/ → docs/architecture/deployment.md |
+
+---
+
+## ⚠️ 合规（硬性）
+
+- ❌ 不直接 push 到 main
+- ❌ 不提交 `.env` / `credentials*` / `*.key` / `id_rsa`
+- ✅ 所有变更关联 Jira 工单（PROJ-XXXX）
+- ✅ PR 必须 review（至少 1 approver）
+- ✅ CI 必须通过：lint + test + security-scan
+
+---
+
+## 🔒 安全红线（硬性）
+
+| ❌ 永远不要 | 原因 |
+|-----------|------|
+| 写明文密钥到代码 | 密钥泄漏 |
+| 跳过 secret-scanner 检查 | 误把密钥提交到 git |
+| 执行 `rm -rf /` 等危险命令 | 数据丢失 |
+| 跳过 CI 检查直接部署 | 引入 bug |
+| 修改 PII 字段不加密 | 合规违规 |
+| 用 admin 权限做无审计操作 | 内部威胁 |
+
+---
+
+## 🛡️ 常见任务示例
+
+### 改一行代码
 ```
-需求 → [Step 1 理解] → [Step 2 规划] → [Step 3 执行] → [Step 4 验证] → [Step 5 归档]
-         ↓                  ↓                ↓                ↓              ↓
-       product-owner    planner +        tracker          e2e tests      /retro
-       architect        architect                          staging       archive
+主人: 改 src/api/users.py:42 把 email 字段加 unique=True
+
+Claude: 直接改 + 简短 commit message（不建 task_plan）
+```
+
+### 加一个 endpoint
+```
+主人: 加一个 GET /v1/users/search?q=xxx
+
+Claude: 
+1. 读 docs/api/openapi.yaml（看现有模式）
+2. 写 endpoint + 测试
+3. 更新 openapi.yaml
+4. 简单 task_plan.md（不是完整 4 步）
+5. PR
+```
+
+### 写架构决策
+```
+主人: 我们要不要从 PostgreSQL 迁到 MySQL？
+
+Claude:
+1. 调 create-adr skill
+2. 读现有 ADR（0001-why-postgresql.md）
+3. 写 ADR-NNNN-why-mysql.md（完整格式）
+4. 列备选 + 决策矩阵
+5. 等评审
+```
+
+### P0 事故
+```
+主人: 用户登录失败！
+
+Claude:
+1. 调 run-incident skill
+2. 读 docs/runbook/login-failure.md
+3. 按 Runbook 执行
+4. 24h 内 postmortem
 ```
 
 ---
 
-## ⚠️ 合规优先
+## 🤖 对 Claude 的话
 
-本项目处理员工个人信息和权限数据，所有变更必须：
-- 关联 Jira 工单（格式：`PROJ-1234`）
-- 经过 PR Review（至少 1 个 Approver）
-- 通过 CI：lint + test + security-scan
-- **禁止**直接 push 到 main
-- **禁止**提交 `.env` / `credentials*` / `*.key` / `id_rsa`
+- **不要过度工程**：简单问题简单答
+- **不要硬套流程**：这是工具不是命令
+- **不要凭感觉**：数据驱动、引用 BR-NNN / ADR-NNN
+- **不确定就问**：用 Socratic 5 问
+- **透明化决策**：把 trade-off 写出来让主人判断
 
-## 技术栈
+主人是 20 年经验的量化分析师，会判断。
 
-| 层 | 选型 | 说明 |
-|----|------|------|
-| 语言 | Python 3.11 | type hints 强制 |
-| Web | FastAPI 0.110+ | async 优先 |
-| ORM | SQLAlchemy 2.0 | async session |
-| 数据库 | PostgreSQL 15 | 主库 + 2 个只读副本 |
-| 缓存 | Redis 7 | session + rate limit |
-| 消息 | Kafka | 用户事件流（user.created / user.deleted） |
-| 部署 | Kubernetes | namespace: `user-service` |
-| 监控 | Prometheus + Grafana | 业务指标见 `docs/metrics.md` |
+---
 
-## 目录约定
+## 📞 联系
 
-```
-src/
-├── api/                  # FastAPI 路由
-│   └── v1/
-│       ├── users.py
-│       ├── auth.py
-│       └── organizations.py
-├── core/                 # 配置、安全、依赖
-│   ├── config.py
-│   ├── security.py
-│   └── deps.py
-├── models/               # SQLAlchemy 模型
-├── schemas/              # Pydantic schema
-├── services/             # 业务逻辑层
-├── repositories/         # 数据访问层
-├── events/               # Kafka 生产/消费
-└── utils/
-
-tests/
-├── unit/
-├── integration/
-└── e2e/
-
-migrations/              # Alembic 迁移
-```
-
-## 常用命令
-
-```bash
-# 开发
-make dev                 # 启 FastAPI + 监听 reload
-make test                # 跑全部测试
-make test-unit           # 仅单元测试
-make lint                # ruff + mypy
-make format              # black + isort
-
-# 数据库
-make db-migrate MSG="..." # alembic upgrade head
-make db-rollback          # alembic downgrade -1
-make db-shell             # psql 进库
-
-# 部署（需审批）
-make deploy-staging       # kubectl apply -k overlays/staging
-make deploy-prod          # kubectl apply -k overlays/prod
-```
-
-## 代码规范
-
-### 必须遵守
-- 所有 API 必须有 OpenAPI 描述（`summary` + `description`）
-- 所有写操作必须有 `@audit_log` 装饰器
-- 所有外部输入必须 Pydantic 校验
-- 所有 SQL 必须用参数化（禁字符串拼接）
-- 所有 `async def` 必须真正 await，禁止 sync IO
-- 所有公开函数必须有 type hints
-
-### 命名约定
-- 文件：`snake_case.py`
-- 类：`PascalCase`
-- 函数/变量：`snake_case`
-- 常量：`UPPER_SNAKE_CASE`
-- 数据库表：`snake_case` 复数（`users`, `organizations`）
-
-### 错误处理
-- API 层：抛 HTTPException，detail 用结构化 dict
-- 服务层：抛自定义异常（`UserNotFoundError` 等）
-- 仓储层：让 SQLAlchemy 异常向上抛，不吞
-
-## 数据安全红线 🚨
-
-- **PII 字段**（email / phone / id_card）查询必须走 `PIIAccessLog`
-- **密码**：禁止日志打印，禁止返回 API response
-- **Token**：HttpOnly Cookie + Secure + SameSite=Strict
-- **密钥**：从 Vault 读取，**永远**不写在代码里
-- **删除用户**：软删（`deleted_at`），禁止硬删
-- **审计**：所有权限变更必须留痕
-
-## 与其他服务的关系
-
-| 服务 | 关系 | 接口 |
-|------|------|------|
-| auth-service | 下游（依赖） | gRPC: `AuthService` |
-| notification-service | 下游 | Kafka: `notification.requested` |
-| audit-service | 下游 | Kafka: `audit.events` |
-| hr-system | 上游（被依赖） | REST: `/v1/employees` |
-| sso-service | 上游 | OIDC |
-
-## Gotchas ⚠️
-
-1. **时区**：数据库统一存 UTC，API 层转 ISO 8601 + 用户时区
-2. **大表查询**：用户表 5000 万行，所有 list 必须分页 + 索引
-3. **缓存一致性**：Redis 是 cache 不是 source of truth，DB 为准
-4. **Kafka 顺序**：同 `user_id` 的事件必须同 partition（key=user_id）
-5. **Kubernetes**：readiness probe 必须检查 DB 连接，不是单纯 TCP
-6. **冷启动**：JIT 预热 5s，slow query 不能用 first request 衡量
-7. **并发更新**：用户信息用乐观锁（`version` 字段）
-
-## 联系人
-
-- **On-call**：PagerDuty → `user-service-oncall`
-- **Slack**：`#user-service-dev`
-- **邮件**：user-service@company.com
-- **架构 Review**：`@arch-review` 组
-
-## 相关文档
-
-- API 文档：`docs/api.md`
-- 数据库 ER：`docs/er.md`
-- 部署 Runbook：`docs/runbook.md`
-- 事故响应：`docs/incident.md`
-- Claude Code 使用规范：`docs/claude-usage.md`
+- **Slack**: `#user-service-dev`
+- **Jira**: `PROJ` 项目
+- **On-call**: PagerDuty
+- **本模板反馈**: `#claude-template-feedback`

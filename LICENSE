@@ -1,0 +1,48 @@
+Proprietary License
+
+Copyright (c) 2026 Company Name. All rights reserved.
+
+This software and associated documentation files (the "Software") are
+proprietary and confidential. Unauthorized copying, distribution, modification,
+or use of this Software, via any medium, is strictly prohibited without
+express written permission from the copyright holder.
+
+Permitted uses:
+- Internal use within the Company
+- Modification for Company internal projects
+- Distribution within Company teams
+
+Prohibited uses (without express written permission):
+- External distribution
+- Commercial sale
+- Public hosting
+- Use by non-Company entities
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+For licensing inquiries, contact: legal@company.com
+
+---
+
+## 第三方组件许可
+
+本模板包含/引用了以下第三方组件，保留各自许可：
+
+| 组件 | 许可 |
+|------|------|
+| Python | PSF License |
+| FastAPI | MIT |
+| SQLAlchemy | MIT |
+| PostgreSQL | PostgreSQL License |
+| Redis | BSD-3-Clause |
+| Kafka | Apache 2.0 |
+| Mermaid | MIT |
+| OpenAPI Generator | Apache 2.0 |
+
+详见各组件的 LICENSE 文件。
