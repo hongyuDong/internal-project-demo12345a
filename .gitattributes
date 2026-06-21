@@ -51,6 +51,6 @@ package-lock.json             merge=union
 yarn.lock                     merge=union
 CHANGELOG.md                  merge=union
 
-# === LFS（大文件） ===
+# === LFS（大文件） - 取消注释启用 ===
 # *.psd filter=lfs diff=lfs merge=lfs -text
 # *.zip filter=lfs diff=lfs merge=lfs -text
